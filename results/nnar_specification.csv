@@ -1,0 +1,2 @@
+"model","p","P","hidden_units","repeats","seed","training_n","test_n"
+"NNAR(11,1,6)[12]",11,1,6,30,20261020,297,24

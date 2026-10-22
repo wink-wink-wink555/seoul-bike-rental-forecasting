@@ -1,0 +1,8 @@
+FRED official series: IPG2211A2N
+Series page: https://fred.stlouisfed.org/series/IPG2211A2N
+Table data page: https://fred.stlouisfed.org/data/IPG2211A2N
+CSV endpoint tested locally: https://fred.stlouisfed.org/graph/fredgraph.csv?id=IPG2211A2N
+Local direct request error (PowerShell Invoke-WebRequest, 2026-10-20): Unable to connect to remote server.
+Snapshot assembled from official FRED table-data page records (2000-01 through 2026-08) and the current FRED series page observation for 2026-09 (114.8603, displayed as updated 2026-10-16).
+Series units: Index 2017=100, not seasonally adjusted, monthly. Source: Board of Governors of the Federal Reserve System (US), retrieved via FRED, Federal Reserve Bank of St. Louis.
+Local snapshot range: 2000-01-01 through 2026-09-01; expected observations: 321 monthly values.

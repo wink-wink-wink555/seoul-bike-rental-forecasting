@@ -1,0 +1,2 @@
+"selected_name","selection_rule","p","d","q","P","D","Q","period","aicc"
+"auto.arima（训练段逐步搜索辅助候选）","Selected lowest training AICc among candidates with Ljung-Box p > 0.05.",2,0,1,0,1,1,12,1440.64235510591

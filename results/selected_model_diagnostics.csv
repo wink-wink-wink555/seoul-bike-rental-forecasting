@@ -1,0 +1,2 @@
+"model","residual_n","ljung_box_lag","fitdf","statistic","p_value","residual_mean","residual_sd","residual_skewness","residual_kurtosis"
+"auto.arima（训练段逐步搜索辅助候选）",297,24,4,28.6255853621008,0.0953977440035051,0.0394561626747264,2.83222113318324,-0.0939836531138202,3.43268572051024

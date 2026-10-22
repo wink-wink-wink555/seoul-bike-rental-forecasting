@@ -1,0 +1,18 @@
+Run started: 2026-10-20 14:27:56 CST
+Project root: D:/R/Projects/Assginment-TimeSeries
+R version: R version 4.6.1 (2026-06-24 ucrt)
+Package forecast 9.0.2
+Package ggplot2 4.0.3
+Package urca 1.3.4
+=== 01_data_preparation.R ===
+Validated 321 monthly observations: 2000-01-01 to 2026-09-01; no missing or duplicate dates.
+=== 02_exploratory_analysis.R ===
+Error in source(file.path(.project_root, "scripts", step), local = .GlobalEnv,  : 
+  D:/R/Projects/Assginment-TimeSeries/scripts/02_exploratory_analysis.R:23:25: unexpected INCOMPLETE_STRING
+22:   ggplot2::geom_line(linewidth = .65, colour = "#176B87") +
+23:   ggplot2::labs(title = "
+                            ^
+Calls: run_pipeline -> source
+In addition: Warning message:
+In source(file.path(.project_root, "scripts", step), local = .GlobalEnv,  :
+  invalid input found on input connection 'D:/R/Projects/Assginment-TimeSeries/scripts/02_exploratory_analysis.R'

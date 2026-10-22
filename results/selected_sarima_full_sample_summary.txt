@@ -1,0 +1,10 @@
+Series: full_ts 
+ARIMA(2,0,1)(0,1,1)[12] with drift 
+
+Coefficients:
+         ar1      ar2      ma1     sma1   drift
+      1.3727  -0.3851  -0.9162  -0.8352  0.0643
+s.e.  0.0761   0.0683   0.0462   0.0358  0.0197
+
+sigma^2 = 8.729:  log likelihood = -777.51
+AIC=1567.02   AICc=1567.29   BIC=1589.42
