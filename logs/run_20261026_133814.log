@@ -1,0 +1,24 @@
+Run started: 2026-10-26 13:38:14 CST
+Project root: D:/R/Projects/Assginment-TimeSeries
+R version: R version 4.6.1 (2026-06-24 ucrt)
+Package forecast 9.0.2
+Package ggplot2 4.0.3
+Package urca 1.3.4
+=== 01_data_preparation.R ===
+Validated 321 monthly observations: 2000-01-01 to 2026-09-01; no missing or duplicate dates.
+=== 02_exploratory_analysis.R ===
+Exploratory analysis complete.
+=== 03_stationarity_analysis.R ===
+Stationarity analysis complete. Test period: 2024-10-01 to 2026-09-01 (24 months).
+=== 04_arima_modeling.R ===
+Selected order: SARIMA(2,0,1)(0,1,1)[12] with drift. Selected lowest training AICc among candidates with Ljung-Box p > 0.05.
+=== 05_neural_network_model.R ===
+NNAR trained on 297 observations with seed 20261020; p=11, P=1, size=6, repeats=30.
+=== 06_forecast_comparison.R ===
+Forecasts complete. Held-out metrics and interval coverage saved; selected SARIMA refitted to all 321 observations for 12 future months.
+=== 08_generate_report_preview.R ===
+Updated report tables and result-dependent conclusions from current CSV outputs; generated report_preview.md (16 image links).
+=== 09_validate_outputs.R ===
+Validation summary written: D:/R/Projects/Assginment-TimeSeries/results/validation_summary.md -- all required checks passed
+Run completed successfully: 2026-10-26 13:38:56 CST
+Log: D:/R/Projects/Assginment-TimeSeries/logs/run_20261026_133814.log

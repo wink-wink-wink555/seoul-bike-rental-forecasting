@@ -1,10 +1,10 @@
-Series: train_ts 
-Model:  NNAR(11,1,6)[12] 
-Call:   forecast::nnetar(y = train_ts, p = 11, P = 1, size = 6, repeats = 30, 
-    scale.inputs = TRUE)
+Series: train_ts
+Model:  NNAR(11,1,6)[12]
+Call:   forecast::nnetar(y = train_ts, p = config$nnar$p, P = config$nnar$P,
+    size = config$nnar$size, repeats = config$nnar$repeats, scale.inputs = TRUE)
 
 Average of 30 networks, each of which is
 a 12-6-1 network with 85 weights
-options were - linear output units 
+options were - linear output units
 
 sigma^2 estimated as 2.735

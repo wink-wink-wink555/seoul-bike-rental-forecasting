@@ -1,16 +1,24 @@
 raw_path <- if (exists(".data_input_path", envir = .GlobalEnv, inherits = FALSE)) {
   get(".data_input_path", envir = .GlobalEnv)
 } else {
-  path_for("data", "raw", "IPG2211A2N_fred_snapshot_2000_2026-09.csv")
+  path_for("data", "raw", .experiment_config$raw_snapshot)
 }
 if (!file.exists(raw_path)) stop("Missing FRED snapshot: ", raw_path)
+config <- .experiment_config
 raw <- utils::read.csv(raw_path, check.names = FALSE, stringsAsFactors = FALSE)
-if (!identical(names(raw), c("observation_date", "IPG2211A2N"))) {
+series_id <- config$series_id
+if (!identical(names(raw), c("observation_date", series_id))) {
   stop("Unexpected columns in the FRED snapshot.")
 }
 parsed_date <- as.Date(raw$observation_date, format = "%Y-%m-%d")
-value <- suppressWarnings(as.numeric(raw$IPG2211A2N))
-analysis_rows <- !is.na(parsed_date) & parsed_date >= as.Date("2000-01-01")
+value <- suppressWarnings(as.numeric(raw[[series_id]]))
+if (anyNA(parsed_date) || anyDuplicated(parsed_date)) {
+  stop("The source snapshot contains missing or duplicate observation dates.")
+}
+snapshot_start <- min(parsed_date)
+snapshot_end <- max(parsed_date)
+analysis_rows <- !is.na(parsed_date) & parsed_date >= config$analysis_start &
+  parsed_date <= config$analysis_end
 parsed_date <- parsed_date[analysis_rows]
 value <- value[analysis_rows]
 if (anyNA(parsed_date) || anyNA(value) || any(!is.finite(value))) {
@@ -25,8 +33,9 @@ if (length(expected_dates) != length(parsed_date) ||
     !identical(parsed_date, expected_dates)) {
   stop("Monthly dates are not continuous; no interpolation was attempted.")
 }
-if (min(parsed_date) != as.Date("2000-01-01") || max(parsed_date) > Sys.Date()) {
-  stop("Unexpected date range in the local snapshot.")
+if (min(parsed_date) != config$analysis_start || max(parsed_date) != config$analysis_end) {
+  stop("The selected official snapshot does not cover the fixed analysis window ",
+       config$analysis_start, " through ", config$analysis_end, ".")
 }
 processed <- data.frame(date = parsed_date, value = value,
                         year = as.integer(format(parsed_date, "%Y")),
@@ -40,18 +49,45 @@ checks <- data.frame(
              "PASS", unname(tools::md5sum(raw_path)))
 )
 write_csv(checks, "results", "data_checks.csv")
+snapshot_metadata <- if (exists(".snapshot_metadata", envir = .GlobalEnv, inherits = FALSE)) {
+  get(".snapshot_metadata", envir = .GlobalEnv)
+} else NULL
+previous_metadata_path <- path_for("results", "data_metadata.csv")
+if (is.null(snapshot_metadata) && file.exists(previous_metadata_path)) {
+  previous_metadata <- utils::read.csv(previous_metadata_path, fileEncoding = "UTF-8",
+                                       stringsAsFactors = FALSE)
+  if (all(c("item", "value") %in% names(previous_metadata)) &&
+      any(previous_metadata$item == "snapshot_file" &
+            previous_metadata$value == basename(raw_path))) {
+    snapshot_metadata <- stats::setNames(previous_metadata$value, previous_metadata$item)
+  }
+}
+snapshot_meta_value <- function(name, fallback) {
+  if (!is.null(snapshot_metadata) && name %in% names(snapshot_metadata) &&
+      !is.null(snapshot_metadata[[name]]) && length(snapshot_metadata[[name]]) == 1L &&
+      !is.na(snapshot_metadata[[name]])) return(as.character(snapshot_metadata[[name]]))
+  fallback
+}
 metadata <- data.frame(
   item = c("series_id", "frequency", "units", "seasonal_adjustment", "source", "series_url",
-           "table_data_url", "snapshot_method", "local_download_error", "retrieved_on",
-           "table_page_coverage", "latest_page_value"),
-  value = c("IPG2211A2N", "Monthly", "Index 2017=100", "Not Seasonally Adjusted",
+           "table_data_url", "snapshot_file", "snapshot_md5", "snapshot_method",
+           "version_consistency", "retrieved_on", "snapshot_start", "snapshot_end",
+           "analysis_start", "analysis_end", "analysis_n", "refresh_status"),
+  value = c(series_id, "Monthly", "Index 2017=100", "Not Seasonally Adjusted",
             "Board of Governors of the Federal Reserve System (US), via FRED, Federal Reserve Bank of St. Louis",
-            "https://fred.stlouisfed.org/series/IPG2211A2N",
-            "https://fred.stlouisfed.org/data/IPG2211A2N",
-            "Official FRED table page through 2026-08 plus the latest displayed series-page value",
-            "PowerShell request to fredgraph.csv failed: Unable to connect to remote server",
-            "2026-10-20", "2000-01 through 2026-08",
-            "2026-09: 114.8603; series page displayed update 2026-10-16")
+            paste0("https://fred.stlouisfed.org/series/", series_id),
+            paste0("https://fred.stlouisfed.org/data/", series_id), basename(raw_path),
+            unname(tools::md5sum(raw_path)),
+            snapshot_meta_value("snapshot_method",
+              "本地历史快照：FRED 官方表格页截至 2026-08，加官方序列页 2026-09 观测值"),
+            snapshot_meta_value("version_consistency",
+              "混合版本：两个官方页面组件，未能验证为同一修订时点"),
+            snapshot_meta_value("retrieved_on", "2026-10-20"),
+            as.character(snapshot_start), as.character(snapshot_end),
+            as.character(config$analysis_start), as.character(config$analysis_end),
+            as.character(nrow(processed)),
+            snapshot_meta_value("refresh_status",
+              "本次未请求刷新；保留固定原始快照，版本限制见 data/raw/SOURCE_NOTES.txt"))
 )
 utils::write.csv(metadata, path_for("results", "data_metadata.csv"),
                  row.names = FALSE, fileEncoding = "UTF-8")
