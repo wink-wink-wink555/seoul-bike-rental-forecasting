@@ -1,0 +1,8 @@
+"id","window","leaf","fraction","weather","transform"
+"RF_raw_84_leaf5_calendar",84,5,0.8,FALSE,"raw"
+"RF_raw_84_leaf5_weather",84,5,0.8,TRUE,"raw"
+"RF_raw_84_leaf15_weather",84,15,0.6,TRUE,"raw"
+"RF_raw_56_leaf5_weather",56,5,0.8,TRUE,"raw"
+"RF_raw_112_leaf5_weather",112,5,0.8,TRUE,"raw"
+"RF_raw_full_leaf15_weather",0,15,0.8,TRUE,"raw"
+"RF_log_84_leaf5_weather",84,5,0.8,TRUE,"log1p"

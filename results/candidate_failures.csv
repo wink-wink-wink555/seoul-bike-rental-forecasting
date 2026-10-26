@@ -1,0 +1,5 @@
+"candidate","phase","reason"
+"D_log_K5_84d","validation_full","2018-08-13 Nonconverged or invalid covariance: D_log_K5_84d"
+"A_raw_212_84d_v2","validation_targeted","2018-08-27 Nonconverged or invalid covariance: A_raw_212_84d_v2"
+"C_raw_601_111_week_84d","validation_targeted","2018-08-01 non-finite finite-difference value [13]"
+"C_raw_1001_111_week_84d","validation_targeted","2018-08-01 reached elapsed time limit"

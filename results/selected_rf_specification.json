@@ -1,0 +1,18 @@
+{
+  "id": "RF_raw_84_leaf5_weather",
+  "window": 84,
+  "leaf": 5,
+  "fraction": 0.8,
+  "weather": true,
+  "transform": "raw",
+  "trees": 400,
+  "selection_metric": "full_61day_validation_all_hours_RMSE",
+  "validation_end": "2018-09-30",
+  "test_used_for_selection": false,
+  "test_previously_inspected": true,
+  "refit_weekday": "Monday",
+  "signature": "57b669a290f6aaeed892a5055bc92b11 b04aefa3f04dd650380fe16947da062d 16139aa2fa5ee4d87ccf6263d7cb3292|e06c3553e8015826df3615fd550a110c b04aefa3f04dd650380fe16947da062d 16139aa2fa5ee4d87ccf6263d7cb3292",
+  "feature_columns": ["hour", "weekday", "weekend", "holiday", "hour_sin", "hour_cos", "count_lag24", "count_lag48", "count_lag168", "count_lag336", "same_hour_7day_mean", "past24_mean", "past24_sd", "past168_mean", "past168_sd", "last_observed_count", "yesterday_hour_00", "yesterday_hour_01", "yesterday_hour_02", "yesterday_hour_03", "yesterday_hour_04", "yesterday_hour_05", "yesterday_hour_06", "yesterday_hour_07", "yesterday_hour_08", "yesterday_hour_09", "yesterday_hour_10", "yesterday_hour_11", "yesterday_hour_12", "yesterday_hour_13", "yesterday_hour_14", "yesterday_hour_15", "yesterday_hour_16", "yesterday_hour_17", "yesterday_hour_18", "yesterday_hour_19", "yesterday_hour_20", "yesterday_hour_21", "yesterday_hour_22", "yesterday_hour_23", "temperature_lag24", "humidity_lag24", "rainfall_lag24", "wind_speed_lag24", "solar_radiation_lag24"],
+  "backend": "R ranger",
+  "ranger_version": "0.18.0"
+}

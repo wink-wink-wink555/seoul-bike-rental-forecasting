@@ -1,163 +1,55 @@
-dat <- utils::read.csv(path_for("data", "processed", "IPG2211A2N_clean.csv"),
-                       stringsAsFactors = FALSE)
-dat$date <- as.Date(dat$date)
-config <- .experiment_config
-h <- config$test_horizon
-train_n <- nrow(dat) - h
-if (train_n <= config$season_period + config$acf_lag_max) {
-  stop("Training sample is too short for the configured seasonal and correlation analyses.")
+d <- hourly(); z <- d[d$date <= config$initial_end, ]; y <- z$count
+series <- list(raw = y, log1p = log1p(y), diff1 = diff(log1p(y)),
+  diff24 = diff(log1p(y), lag = 24), diff1_diff24 = diff(diff(log1p(y), lag = 24)))
+tests <- do.call(rbind, lapply(names(series), function(nm) {
+  v <- series[[nm]]; tr <- nm %in% c("raw", "log1p")
+  adf <- urca::ur.df(v, type = if (tr) "trend" else "drift", lags = 48, selectlags = "BIC")
+  kp <- urca::ur.kpss(v, type = if (tr) "tau" else "mu", lags = "long")
+  data.frame(series = nm, n = length(v), adf_deterministic = if (tr) "trend" else "drift",
+    adf_max_lag = 48, adf_selected_lag = sum(grepl("^z.diff.lag", rownames(adf@testreg$coefficients))),
+    adf_statistic = adf@teststat[1, 1], adf_cv_5pct = adf@cval[1, "5pct"],
+    adf_reject_unit_root_5pct = adf@teststat[1, 1] < adf@cval[1, "5pct"],
+    kpss_statistic = kp@teststat[1], kpss_cv_5pct = kp@cval[1, "5pct"],
+    kpss_reject_stationarity_5pct = kp@teststat[1] > kp@cval[1, "5pct"])
+}))
+write_csv(tests, "results", "stationarity_tests.csv")
+sensitivity<-do.call(rbind,lapply(names(series),function(nm) {
+  v<-series[[nm]];tr<-nm %in% c("raw","log1p")
+  a<-urca::ur.df(v,type=if(tr)"trend" else "drift",lags=168,selectlags="Fixed")
+  k<-urca::ur.kpss(v,type=if(tr)"tau" else "mu",use.lag=168)
+  data.frame(series=nm,n=length(v),adf_deterministic=if(tr)"trend" else "drift",adf_max_lag=168,
+    adf_selected_lag=168,adf_statistic=a@teststat[1,1],adf_cv_5pct=a@cval[1,"5pct"],
+    adf_reject_unit_root_5pct=a@teststat[1,1]<a@cval[1,"5pct"],kpss_statistic=k@teststat[1],
+    kpss_cv_5pct=k@cval[1,"5pct"],kpss_reject_stationarity_5pct=k@teststat[1]>k@cval[1,"5pct"])
+}))
+write_csv(sensitivity,"results","stationarity_sensitivity.csv")
+write_csv(data.frame(method = c("ndiffs_KPSS_log1p", "nsdiffs_seasonal_strength_log1p"),
+  recommendation = c(forecast::ndiffs(log1p(y), test = "kpss", max.d = 1),
+    forecast::nsdiffs(ts(log1p(y), frequency = 24), test = "seas", max.D = 1))),
+  "results", "differencing_recommendations.csv")
+correlations <- function(v, nm, maxlag = 336) {
+  a <- as.numeric(acf(as.numeric(v), lag.max = maxlag, plot = FALSE)$acf)[-1]
+  p <- as.numeric(pacf(as.numeric(v), lag.max = maxlag, plot = FALSE)$acf)
+  stopifnot(length(a) == maxlag, length(p) == maxlag, abs(a[1] - p[1]) < 1e-10)
+  rbind(data.frame(series = nm, lag = seq_len(maxlag), value = a, function_type = "ACF"),
+    data.frame(series = nm, lag = seq_len(maxlag), value = p, function_type = "PACF"))
 }
-train <- dat[seq_len(train_n), ]
-train_ts <- stats::ts(train$value, start = c(train$year[1], train$month[1]),
-                      frequency = config$season_period)
-assign(".training_ts", train_ts, envir = .GlobalEnv)
-assign(".training_data", train, envir = .GlobalEnv)
-assign(".test_data", dat[(train_n + 1L):nrow(dat), ], envir = .GlobalEnv)
-
-critical_p_label <- function(stat, critical, tail = c("left", "right")) {
-  tail <- match.arg(tail)
-  cv <- as.numeric(critical[c("1pct", "5pct", "10pct")])
-  if (tail == "left") {
-    if (stat <= cv[1]) return("<0.01")
-    if (stat <= cv[2]) return(sprintf("约%.3f", .01 + .04 * (cv[1] - stat) / (cv[1] - cv[2])))
-    if (stat <= cv[3]) return(sprintf("约%.3f", .05 + .05 * (cv[2] - stat) / (cv[2] - cv[3])))
-    return(">0.10")
-  }
-  if (stat >= cv[1]) return("<0.01")
-  if (stat >= cv[2]) return(sprintf("约%.3f", .01 + .04 * (stat - cv[1]) / (cv[2] - cv[1])))
-  if (stat >= cv[3]) return(sprintf("约%.3f", .05 + .05 * (stat - cv[2]) / (cv[3] - cv[2])))
-  ">0.10"
+corr <- do.call(rbind, lapply(c("log1p", "diff24", "diff1_diff24"), function(nm) correlations(series[[nm]], nm)))
+write_csv(corr, "results", "acf_pacf_training.csv")
+for (nm in c("log1p", "diff24", "diff1_diff24")) {
+  cc <- corr[corr$series == nm, ]; bound <- 1.96 / sqrt(length(series[[nm]]))
+  p <- ggplot2::ggplot(cc, ggplot2::aes(lag, value)) +
+    ggplot2::geom_segment(ggplot2::aes(xend = lag, y = 0, yend = value), colour = "#247BA0", linewidth = .3) +
+    ggplot2::geom_hline(yintercept = c(-bound, bound), linetype = 2, colour = "#D75D43") +
+    ggplot2::geom_vline(xintercept = c(24, 168, 336), linetype = 3, colour = "#88949E") +
+    ggplot2::facet_grid(function_type ~ .) + ggplot2::scale_x_continuous(breaks = c(1, 24, 48, 72, 168, 240, 336)) +
+    ggplot2::labs(title = paste0("训练段相关函数：", nm), subtitle = "虚线标出日、周及两周滞后；置信界限为描述性近似", x = "滞后（小时）", y = "相关系数")
+  no <- match(nm, c("log1p", "diff24", "diff1_diff24")) + 10
+  save_plot(p, sprintf("%02d_acf_pacf_%s.png", no, nm), paste0("训练段 ", nm, " 的 ACF/PACF"), 2, height = 7)
 }
-run_tests <- function(x, label, trend = FALSE) {
-  x <- as.numeric(stats::na.omit(x))
-  adf_type <- if (trend) "trend" else "drift"
-  adf <- urca::ur.df(x, type = adf_type,
-                     lags = min(12L, floor(length(x) / 10)), selectlags = "AIC")
-  adf_stat <- unname(adf@teststat[1, 1])
-  adf_cv <- adf@cval[1, ]
-  kpss_type <- if (trend) "tau" else "mu"
-  kpss <- urca::ur.kpss(x, type = kpss_type, lags = "long")
-  kpss_stat <- as.numeric(kpss@teststat[1])
-  kpss_cv <- kpss@cval[1, ]
-  data.frame(
-    series = label, n = length(x), adf_deterministic = adf_type,
-    adf_statistic = adf_stat, adf_cv_1pct = adf_cv["1pct"],
-    adf_cv_5pct = adf_cv["5pct"], adf_cv_10pct = adf_cv["10pct"],
-    adf_p_approx = critical_p_label(adf_stat, adf_cv, "left"),
-    adf_decision_5pct = if (adf_stat < adf_cv["5pct"]) "拒绝单位根原假设" else "未拒绝单位根原假设",
-    kpss_deterministic = kpss_type, kpss_statistic = kpss_stat,
-    kpss_cv_1pct = kpss_cv["1pct"], kpss_cv_5pct = kpss_cv["5pct"],
-    kpss_cv_10pct = kpss_cv["10pct"],
-    kpss_p_approx = critical_p_label(kpss_stat, kpss_cv, "right"),
-    kpss_decision_5pct = if (kpss_stat > kpss_cv["5pct"]) "拒绝平稳性原假设" else "未拒绝平稳性原假设",
-    stringsAsFactors = FALSE
-  )
-}
-seasonal_diff <- diff(train_ts, lag = config$season_period, differences = 1)
-first_diff <- diff(train_ts, differences = 1)
-combined_diff <- diff(seasonal_diff, differences = 1)
-stationarity <- rbind(
-  run_tests(train_ts, "训练段原序列（含趋势项）", trend = TRUE),
-  run_tests(first_diff, "训练段一阶非季节差分"),
-  run_tests(seasonal_diff, "训练段一阶季节差分（12阶）"),
-  run_tests(combined_diff, "训练段季节差分后再一阶差分")
-)
-write_csv(stationarity, "results", "stationarity_tests.csv")
-
-acf_frame <- function(x, partial = FALSE, lag_max = config$acf_lag_max) {
-  x <- as.numeric(x)
-  obj <- if (partial) stats::pacf(x, lag.max = lag_max, plot = FALSE) else
-    stats::acf(x, lag.max = lag_max, plot = FALSE)
-  lag <- as.numeric(obj$lag)
-  correlation <- as.numeric(obj$acf)
-  if (length(lag) != length(correlation)) {
-    stop("ACF/PACF returned different numbers of lag and correlation values.")
-  }
-  keep <- if (partial) lag >= 1 else lag > 0
-  out <- data.frame(lag = as.integer(round(lag[keep])),
-                    correlation = correlation[keep])
-  if (!nrow(out) || anyNA(out) || anyDuplicated(out$lag) ||
-      !identical(out$lag, seq_len(nrow(out)))) {
-    stop(if (partial) "PACF lag indices are not contiguous from lag 1." else
-           "ACF lag indices are not contiguous from lag 1.")
-  }
-  out
-}
-assert_correlation_alignment <- function(x, label) {
-  a <- acf_frame(x, partial = FALSE)
-  p <- acf_frame(x, partial = TRUE)
-  expected_lags <- seq_len(config$acf_lag_max)
-  if (!identical(a$lag, expected_lags) || !identical(p$lag, expected_lags)) {
-    stop(label, ": ACF/PACF lags must both begin at 1 and be contiguous.")
-  }
-  lag_one_error <- abs(a$correlation[1] - p$correlation[1])
-  if (!is.finite(lag_one_error) || lag_one_error > 1e-10) {
-    stop(label, ": PACF(1) does not equal ACF(1) within numeric tolerance; error=",
-         format(lag_one_error, scientific = TRUE))
-  }
-  invisible(list(acf = a, pacf = p, lag_one_error = lag_one_error))
-}
-original_corr <- assert_correlation_alignment(train_ts, "Training original series")
-seasonal_corr <- assert_correlation_alignment(seasonal_diff, "Training seasonal-differenced series")
-plot_corr <- function(x, title, file) {
-  a <- acf_frame(x, FALSE)
-  p <- acf_frame(x, TRUE)
-  bound <- 1.96 / sqrt(length(x))
-  ac <- ggplot2::ggplot(a, ggplot2::aes(lag, correlation)) +
-    ggplot2::geom_hline(yintercept = 0, colour = "#555555") +
-    ggplot2::geom_segment(ggplot2::aes(xend = lag, y = 0, yend = correlation),
-                          colour = "#176B87") +
-    ggplot2::geom_hline(yintercept = c(-bound, bound), linetype = 2,
-                        colour = "#C44536") +
-    ggplot2::scale_x_continuous(breaks = seq(6, config$acf_lag_max, 6),
-                                limits = c(.5, config$acf_lag_max + .5),
-                                minor_breaks = NULL) +
-    ggplot2::labs(title = paste0(title, "：ACF"), x = "滞后（月）", y = "自相关")
-  pc <- ggplot2::ggplot(p, ggplot2::aes(lag, correlation)) +
-    ggplot2::geom_hline(yintercept = 0, colour = "#555555") +
-    ggplot2::geom_segment(ggplot2::aes(xend = lag, y = 0, yend = correlation),
-                          colour = "#E07A5F") +
-    ggplot2::geom_hline(yintercept = c(-bound, bound), linetype = 2,
-                        colour = "#C44536") +
-    ggplot2::scale_x_continuous(breaks = seq(6, config$acf_lag_max, 6),
-                                limits = c(.5, config$acf_lag_max + .5),
-                                minor_breaks = NULL) +
-    ggplot2::labs(title = paste0(title, "：PACF"), x = "滞后（月）", y = "偏自相关")
-  save_plot(ac, paste0(file, "_acf.png"), 8, 4.6)
-  save_plot(pc, paste0(file, "_pacf.png"), 8, 4.6)
-}
-plot_corr(train_ts, "训练段原序列", "04_original")
-plot_corr(seasonal_diff, "训练段季节差分序列", "06_seasonal_diff")
-correlation_table <- function(x, label) {
-  a <- acf_frame(x, FALSE)
-  p <- acf_frame(x, TRUE)
-  aligned <- merge(a, p, by = "lag", all = TRUE, sort = TRUE,
-                   suffixes = c("_acf", "_pacf"))
-  if (anyNA(aligned) || !identical(aligned$lag, seq_len(config$acf_lag_max))) {
-    stop(label, ": ACF and PACF could not be joined on identical contiguous lag values.")
-  }
-  aligned <- aligned[aligned$lag <= config$identification_table_lags, , drop = FALSE]
-  data.frame(series = label, lag = aligned$lag,
-             acf = aligned$correlation_acf,
-             pacf = aligned$correlation_pacf)
-}
-correlation_results <- rbind(correlation_table(train_ts, "训练段原序列"),
-                             correlation_table(seasonal_diff, "训练段季节差分"))
-write_csv(correlation_results, "results", "acf_pacf_identification.csv")
-
-diff_frame <- rbind(
-  data.frame(date = train$date, series = "原序列", value = train$value),
-  data.frame(date = train$date[-1], series = "一阶非季节差分", value = as.numeric(first_diff)),
-  data.frame(date = train$date[-seq_len(12)], series = "一阶季节差分（12阶）",
-             value = as.numeric(seasonal_diff))
-)
-diff_frame$series <- factor(diff_frame$series,
-                            levels = c("原序列", "一阶非季节差分", "一阶季节差分（12阶）"))
-diff_plot <- ggplot2::ggplot(diff_frame, ggplot2::aes(date, value)) +
-  ggplot2::geom_line(linewidth = .45, colour = "#176B87") +
-  ggplot2::facet_grid(series ~ ., scales = "free_y") +
-  ggplot2::labs(title = "训练段原序列与差分序列", x = "月份", y = "序列值") +
-  ggplot2::theme(strip.text.y = ggplot2::element_text(angle = 0, face = "bold"))
-save_plot(diff_plot, "05_differencing_comparison.png", 10, 7)
-message("Stationarity analysis complete. Test period: ", min(.test_data$date),
-        " to ", max(.test_data$date), " (", nrow(.test_data), " months).")
+dif <- do.call(rbind, lapply(c("log1p", "diff1", "diff24", "diff1_diff24"), function(nm) {
+  v <- series[[nm]]; data.frame(timestamp = tail(z$timestamp, length(v)), value = v, transform = nm)
+}))
+save_plot(ggplot2::ggplot(dif, ggplot2::aes(timestamp, value)) + ggplot2::geom_line(linewidth = .25, colour = "#247BA0") +
+  ggplot2::facet_grid(transform ~ ., scales = "free_y") + ggplot2::labs(title = "训练段对数变换与差分比较", x = "时间", y = "变换值"),
+  "14_differencing_comparison.png", "训练段不同差分方案比较", 2, height = 8)

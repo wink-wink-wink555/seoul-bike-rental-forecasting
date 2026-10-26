@@ -1,0 +1,1 @@
+Fixed reference from the completed v1 experiment. Its October-November results have already been inspected. v2 selection uses development data only; new test comparisons are supplementary historical evaluation, not a new blind test.

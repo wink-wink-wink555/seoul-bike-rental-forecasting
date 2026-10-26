@@ -1,0 +1,5 @@
+"family","initial_candidate","final_candidate","initial_validation_RMSE","final_validation_RMSE","change_percent","reason"
+"ARIMA","A_raw_312_84d","A_raw_312_84d",667.474782196964,667.474782196964,0,"Same full-daily Monday-refit protocol; selection uses validation RMSE only"
+"DHR_ARIMA","D_raw_202_K5_weekend_84d_refined","D_raw_202_K5_weekend_84d_refined",500.222825486574,500.222825486574,0,"Same full-daily Monday-refit protocol; selection uses validation RMSE only"
+"SARIMA24","S_raw_101_011_full","S_raw_101_011_full",486.807166890031,486.807166890031,0,"Same full-daily Monday-refit protocol; selection uses validation RMSE only"
+"SARIMAX24","S_raw_101_011_full","C_raw_202_101_fullcalendar_84d",486.807166890031,478.75934567336,-1.65318462094224,"Same full-daily Monday-refit protocol; selection uses validation RMSE only"

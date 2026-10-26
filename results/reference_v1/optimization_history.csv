@@ -1,0 +1,4 @@
+"family","initial_candidate","final_candidate","initial_validation_RMSE","final_validation_RMSE","change_percent","reason"
+"ARIMA","A_raw_212_full","A_raw_212_full",736.72377527261,736.72377527261,0,"Lag168 sensitivity and known weekend/hour interaction; validation only"
+"DHR_ARIMA","D_raw_K5_weather_84d","D_raw_202_K5_weekend_84d_refined",537.578501623042,501.926977082047,-6.63187319309765,"Lag168 sensitivity and known weekend/hour interaction; validation only"
+"SARIMA24","S_raw_101_111_84d","S_raw_101_111_84d",490.632228808831,490.632228808831,0,"Lag168 sensitivity and known weekend/hour interaction; validation only"

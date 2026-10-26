@@ -1,84 +1,65 @@
-# 时间序列分析课程大作业
+﻿# 首尔共享单车小时租借量预测课程作业
 
-本项目研究美国电力与燃气公用事业工业生产指数，围绕季节性 ARIMA 建模完成数据描述、平稳性判断、模型识别、参数估计、残差诊断、样本外预测和预测评估，并以 ETS、NNAR 和季节性朴素方法作对照。研究对象是工业生产指数，不是实际发电量、用电量或能源消费量。
+使用 UCI Seoul Bike Sharing Demand 的 8,760 条连续小时记录，预测次日 24 小时实际租借量。数据处理、建模、图表、报告材料和独立核验全部使用 R。
 
-## 数据与研究窗口
+## 报告材料
 
-- FRED 序列：`IPG2211A2N`
-- 频率：月度；单位：Index 2017=100；季节调整：未经季节性调整
-- 固定分析窗口：2000-01 至 2026-09，共 321 个观测
-- 原始本地快照：`data/raw/IPG2211A2N_fred_snapshot_2000_2026-09.csv`
-- 官方页面：[FRED 序列说明](https://fred.stlouisfed.org/series/IPG2211A2N)；[FRED 官方数据表](https://fred.stlouisfed.org/data/IPG2211A2N)
+- `report_ready.html`：离线查看五章材料、实际结果表和全部图表。
+- `report_materials.md`：可编辑的报告撰写材料。
+- [实验过程详解.md](实验过程详解.md)：逐步解释实验设计、模型、困难处理、结果解读与报告写法。
+- `results/report_tables/`：中文 CSV 与 Markdown 表格。
+- `figures/`：300 DPI PNG 图表；`results/report_figure_manifest.csv` 提供报告图号。
+- `results/validation_summary.md`：独立工程核验结果。核验通过不代表所有统计假设成立。
 
-现存原始快照由 FRED 官方表格页截至 2026-08 的记录和官方序列页显示的 2026-09 观测值组成。两者来源均为 FRED，但未能证明属于同一修订时点。2026-10-26 对官方完整 CSV 的下载尝试因当前网络无法连接而失败；因此本次保留原始数据及其限制说明，未使用第三方镜像或人工补值。详细记录见 `data/raw/SOURCE_NOTES.txt` 和 `results/data_metadata.csv`。
+材料如实报告强基线、模型失败和残差相关，不保证复杂模型优于简单方法。已有测试段结果已经查看，本轮属于补充历史评价，不能称作全新盲测。
+
+## 实验口径
+
+初始训练为 2017-12-01 至 2018-07-31（5,832 小时），验证为 2018-08-01 至 2018-09-30（1,464 小时），固定历史测试为 2018-10-01 至 2018-11-30（1,464 小时）。
+
+每次在前一天 23:00 预测次日全部 24 小时。全部候选尝试完整 61 天验证，取消只覆盖某一星期位置的初筛。起始拟合后统一每周一重估，周内 ARIMA 更新状态，随机森林使用最新已知历史特征。模型仅按全部小时的验证 RMSE 选择。失败候选单列原因，不把超时当作预测表现差。
+
+模型包括普通 ARIMA、24 小时 SARIMA、Fourier 日周结构加 ARIMA 误差、日周日历加季节 ARIMA 误差，以及 R `ranger` 随机森林。随机森林是第四章的可选机器学习比较，课程没有点名要求它。五个简单基线为前日同期、前周同期、过去七日同小时均值、中位数、过去 28 日同工作日/周末类型均值。最强基线先由验证段选定，测试段报告全部基线。
+
+保留全部 295 个非运营零值与连续小时轴。主要评价覆盖全部小时，正常运营子集仅作事后诊断。模型不输入目标日实测天气和运营状态。天气候选只使用目标小时前 24 小时已观测天气；所有输入源时间均不晚于预测起点。MASE 的周周期缩放分母仅由相应评价开始前历史计算。
+
+末端外推是 **2018-12-01** 的 24 小时，并设定普通非节假日情景。只有一年数据，不能据此确认跨年周期稳定。
 
 ## 运行
 
-需要 R 和 `forecast`、`ggplot2`、`urca` 包。先确认 `Rscript` 可在当前 PowerShell 中找到：
+使用 R，主要包为 `forecast`、`ggplot2`、`urca`、`ranger`、`jsonlite`。实际版本见 `results/r_package_versions.csv` 和 `results/r_session_info.txt`。项目 `.Rlib/` 中提供已安装的新增包；`data/r_packages/` 留存适用于本机 R 4.6 的 Windows 包归档，初始化时可按需安装。其他 R 版本或操作系统应安装相应版本的这五个包。
 
 ```powershell
-Get-Command Rscript
-Rscript scripts/run_all.R
+Rscript --vanilla scripts/run_all.R
 ```
 
-也可以使用项目入口：
+也可运行 `run.ps1`。分步运行示例：
 
 ```powershell
-.\run.ps1
+Rscript --vanilla scripts/run_all.R --steps=6,7,8
 ```
 
-如果当前 PowerShell 执行策略阻止未签名脚本，可用一次性进程级设置运行入口，不会更改系统执行策略：
+步骤依次为数据准备、探索图表、平稳性、ARIMA 完整验证及结构补强、R 随机森林、最终评价、报告材料、独立核验。后续步骤要求已有前置结果。首次完整建模耗时较长；相同代码、数据与协议签名复用 RDS 缓存。未完成候选再次运行会重试。模型 RDS 在 `results/models/`，运行日志在 `logs/`。
 
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\run.ps1
-```
+普通复现使用本地固定官方快照并校验 MD5，不联网覆盖数据。若本地 CSV 缺失，`fetch_data.R` 优先从项目原始 ZIP 恢复，再按需从 UCI 下载。
 
-普通运行使用已保存的本地快照，不联网刷新。显式请求 FRED 官方 CSV 刷新：
+## R 代码
 
-```powershell
-Rscript scripts/run_all.R --refresh-data
-# 或
-.\run.ps1 -RefreshData
-# 若执行策略阻止脚本，可用进程级设置：
-powershell -NoProfile -ExecutionPolicy Bypass -File .\run.ps1 -RefreshData
-```
+- `00_setup.R`：协议、软件依赖、工具与绘图规范。
+- `01_data_preparation.R`：官方快照核验、小时轴、字段和停运记录。
+- `02_exploratory_analysis.R`：描述统计及日内、周内、天气、运营图表。
+- `03_stationarity_analysis.R`：训练段 ADF/KPSS、敏感性、差分和 ACF/PACF。
+- `03_baselines.R`：五个基线及源时间审计。
+- `04_model_engine.R`：拟合、状态更新、预测、缓存、并行候选及诊断。
+- `04_arima_experiments.R`、`04_refinement.R`：完整验证、结构补强、选模和失败记录。
+- `05_rf_engine.R`、`05_random_forest.R`：R ranger 特征、完整验证、预测与 RDS 保存。
+- `06_final_evaluation.R`：共同测试段、区间、诊断、强基线与末端外推。
+- `07_report_materials.R`、`07_report_builder.R`：从实际结果生成报告材料、表格与离线 HTML。
+- `08_validate_outputs.R`、`08_full_checks.R`：独立重算指标、基线、时间边界、RDS 及产物一致性。
+- `fetch_data.R`、`run_all.R`：数据恢复与完整入口。
 
-刷新只会接受一次官方 CSV 响应中完整覆盖固定分析窗口、日期连续且数值有限的数据。成功时保存新的时间戳原始快照并归档旧结果；若官方连接失败或校验不通过，则记录原因、保留原始快照并继续运行。分析窗口在 `scripts/00_setup.R` 集中配置，不会因新增月份自动延长。
+以上脚本均在 `scripts/` 中。
 
-## 实验流程
+## 数据来源
 
-统一入口按以下次序运行：
-
-1. `scripts/00_setup.R`：集中设置研究窗口、训练测试期、季节周期、NNAR 配置、依赖包和绘图输出。
-2. `scripts/01_data_preparation.R`：校验 FRED CSV，生成清洗数据、数据质量检查和快照元信息。
-3. `scripts/02_exploratory_analysis.R`：描述性统计、月份特征、原序列与 STL 分解。
-4. `scripts/03_stationarity_analysis.R`：ADF/KPSS、差分、ACF/PACF 和相关表。ACF、PACF 分别按实际 lag 值绘图并显式校验 lag 1 与连续滞后。
-5. `scripts/04_arima_modeling.R`：训练段 SARIMA 候选、AICc 比较、参数估计和残差诊断。
-6. `scripts/05_neural_network_model.R`：按固定种子训练 NNAR。
-7. `scripts/06_forecast_comparison.R`：四模型在共同测试期比较、预测区间覆盖率、全样本 SARIMA 未来 12 个月预测。
-8. `scripts/08_generate_report_preview.R`：从最新 CSV 更新报告表格和模型排名文字，再生成带图预览。
-9. `scripts/09_validate_outputs.R`：重新计算关键统计量、误差、区间覆盖率、图表编号及报告对应关系；关键检查失败时返回非零状态。
-
-最近 24 个月作为按时间顺序留出的独立测试集。SARIMA 候选识别和 NNAR 拟合只使用训练段；各对照模型使用相同测试月份。误差指标包括 MAE、RMSE、sMAPE、MASE。SARIMA 测试区间采用包含上下界的定义计算 80%/95% 实际覆盖率。
-
-## 输出
-
-- 清洗数据：`data/processed/IPG2211A2N_clean.csv`
-- 统计表、模型对象、预测与诊断：`results/`
-- 80%/95% 预测区间覆盖率：`results/prediction_interval_coverage.csv`
-- 图片：`figures/`（由统一绘图函数以 300 DPI PNG 输出）
-- 正式报告：`report.md`
-- 带图预览：`report_preview.md`
-- 验收摘要：`results/validation_summary.md`
-- 每次运行日志：`logs/`
-
-## 目录
-
-```text
-data/raw/          官方来源快照与版本说明
-data/processed/    校验后的固定分析窗口
-scripts/           实验模块、统一入口和验收
-figures/           300 DPI PNG 图表
-results/           CSV、RDS、TXT 结果和验收摘要
-logs/              每次流水线运行记录
-```
+UCI Machine Learning Repository. *Seoul Bike Sharing Demand*. DOI: [10.24432/C5F62R](https://doi.org/10.24432/C5F62R)，CC BY 4.0。[官方页面](https://archive.ics.uci.edu/dataset/560/seoul+bike+sharing+demand)。官方 ZIP、原始 CSV、获取时间与哈希均在 `data/raw/`。

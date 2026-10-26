@@ -1,0 +1,17 @@
+"check","passed"
+"ARIMA order",TRUE
+"ARIMA parameters",TRUE
+"ARIMA Ljung-Box",TRUE
+"ARIMA finite positive covariance",TRUE
+"DHR_ARIMA order",TRUE
+"DHR_ARIMA parameters",TRUE
+"DHR_ARIMA Ljung-Box",TRUE
+"DHR_ARIMA finite positive covariance",TRUE
+"SARIMA24 order",TRUE
+"SARIMA24 parameters",TRUE
+"SARIMA24 Ljung-Box",TRUE
+"SARIMA24 finite positive covariance",TRUE
+"SARIMAX24 order",TRUE
+"SARIMAX24 parameters",TRUE
+"SARIMAX24 Ljung-Box",TRUE
+"SARIMAX24 finite positive covariance",TRUE
