@@ -5,6 +5,23 @@ project_root <- get(".project_root", envir = .GlobalEnv)
 dir.create(file.path(project_root, ".Rlib"), recursive = TRUE, showWarnings = FALSE)
 .libPaths(c(file.path(project_root, ".Rlib"), .libPaths()))
 
+experiment_config <- list(
+  series_id = "IPG2211A2N",
+  analysis_start = as.Date("2000-01-01"),
+  analysis_end = as.Date("2026-09-01"),
+  raw_snapshot = "IPG2211A2N_fred_snapshot_2000_2026-09.csv",
+  test_horizon = 24L,
+  future_horizon = 12L,
+  season_period = 12L,
+  acf_lag_max = 48L,
+  identification_table_lags = 24L,
+  residual_ljung_box_lag = 24L,
+  nnar = list(p = 11L, P = 1L, size = 6L, repeats = 30L, seed = 20261020L),
+  sarima_search = list(max_p = 3L, max_q = 3L, max_P = 2L, max_Q = 2L,
+                       max_d = 1L, max_D = 1L)
+)
+assign(".experiment_config", experiment_config, envir = .GlobalEnv)
+
 required_packages <- c("forecast", "ggplot2", "urca")
 missing_packages <- required_packages[!vapply(required_packages, requireNamespace,
                                                logical(1), quietly = TRUE)]

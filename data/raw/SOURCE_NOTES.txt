@@ -1,8 +1,41 @@
-FRED official series: IPG2211A2N
+FRED OFFICIAL SERIES SNAPSHOT
+
+Series ID: IPG2211A2N
 Series page: https://fred.stlouisfed.org/series/IPG2211A2N
-Table data page: https://fred.stlouisfed.org/data/IPG2211A2N
-CSV endpoint tested locally: https://fred.stlouisfed.org/graph/fredgraph.csv?id=IPG2211A2N
-Local direct request error (PowerShell Invoke-WebRequest, 2026-10-20): Unable to connect to remote server.
-Snapshot assembled from official FRED table-data page records (2000-01 through 2026-08) and the current FRED series page observation for 2026-09 (114.8603, displayed as updated 2026-10-16).
-Series units: Index 2017=100, not seasonally adjusted, monthly. Source: Board of Governors of the Federal Reserve System (US), retrieved via FRED, Federal Reserve Bank of St. Louis.
-Local snapshot range: 2000-01-01 through 2026-09-01; expected observations: 321 monthly values.
+Official table data page: https://fred.stlouisfed.org/data/IPG2211A2N
+Official CSV endpoint: https://fred.stlouisfed.org/graph/fredgraph.csv?id=IPG2211A2N
+Frequency: Monthly
+Units: Index 2017=100
+Seasonal adjustment: Not Seasonally Adjusted
+Original release source: Board of Governors of the Federal Reserve System (US),
+provided through FRED, Federal Reserve Bank of St. Louis.
+
+Preserved local raw file:
+  IPG2211A2N_fred_snapshot_2000_2026-09.csv
+Analysis window:
+  2000-01-01 through 2026-09-01, 321 monthly observations.
+
+Version limitation:
+  This preserved file was assembled on 2026-10-20 from the official FRED table
+  data page through 2026-08 and the official series page's displayed 2026-09
+  observation (114.8603, shown as updated 2026-10-16). Both components came
+  from FRED, but they were obtained from separate pages at different times and
+  cannot be verified as a single FRED revision vintage. Treat this as a mixed
+  official-page snapshot, not a consistent point-in-time historical vintage.
+  The original file is retained unchanged as a historical backup.
+
+Refresh attempts on 2026-10-26:
+  Direct PowerShell requests to the FRED CSV and series endpoints failed with
+  "Unable to connect to remote server". The official table page was accessible
+  through the research browser, but only its page version through 2026-08 was
+  available there; this is not a full official CSV snapshot through 2026-09.
+  No third-party mirror, interpolation, random value, or manually fabricated
+  observation was used. The pipeline treats an explicit refresh failure as
+  non-fatal, keeps this raw file, and continues with the fixed analysis window.
+
+The frozen file is used by ordinary runs; they do not access the network.
+When a future explicit refresh succeeds, the pipeline accepts only a single
+official FRED CSV response with finite, continuous values covering the full
+configured analysis window. It saves that complete response to a new
+timestamped raw file, writes separate metadata, and archives prior generated
+outputs. The original raw backup is never overwritten.

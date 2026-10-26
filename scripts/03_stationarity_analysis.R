@@ -1,10 +1,15 @@
 dat <- utils::read.csv(path_for("data", "processed", "IPG2211A2N_clean.csv"),
                        stringsAsFactors = FALSE)
 dat$date <- as.Date(dat$date)
-h <- 24L
+config <- .experiment_config
+h <- config$test_horizon
 train_n <- nrow(dat) - h
+if (train_n <= config$season_period + config$acf_lag_max) {
+  stop("Training sample is too short for the configured seasonal and correlation analyses.")
+}
 train <- dat[seq_len(train_n), ]
-train_ts <- stats::ts(train$value, start = c(train$year[1], train$month[1]), frequency = 12)
+train_ts <- stats::ts(train$value, start = c(train$year[1], train$month[1]),
+                      frequency = config$season_period)
 assign(".training_ts", train_ts, envir = .GlobalEnv)
 assign(".training_data", train, envir = .GlobalEnv)
 assign(".test_data", dat[(train_n + 1L):nrow(dat), ], envir = .GlobalEnv)
@@ -48,7 +53,7 @@ run_tests <- function(x, label, trend = FALSE) {
     stringsAsFactors = FALSE
   )
 }
-seasonal_diff <- diff(train_ts, lag = 12, differences = 1)
+seasonal_diff <- diff(train_ts, lag = config$season_period, differences = 1)
 first_diff <- diff(train_ts, differences = 1)
 combined_diff <- diff(seasonal_diff, differences = 1)
 stationarity <- rbind(
@@ -59,12 +64,41 @@ stationarity <- rbind(
 )
 write_csv(stationarity, "results", "stationarity_tests.csv")
 
-acf_frame <- function(x, partial = FALSE, lag_max = 48L) {
+acf_frame <- function(x, partial = FALSE, lag_max = config$acf_lag_max) {
   x <- as.numeric(x)
   obj <- if (partial) stats::pacf(x, lag.max = lag_max, plot = FALSE) else
     stats::acf(x, lag.max = lag_max, plot = FALSE)
-  data.frame(lag = as.numeric(obj$lag)[-1], correlation = as.numeric(obj$acf)[-1])
+  lag <- as.numeric(obj$lag)
+  correlation <- as.numeric(obj$acf)
+  if (length(lag) != length(correlation)) {
+    stop("ACF/PACF returned different numbers of lag and correlation values.")
+  }
+  keep <- if (partial) lag >= 1 else lag > 0
+  out <- data.frame(lag = as.integer(round(lag[keep])),
+                    correlation = correlation[keep])
+  if (!nrow(out) || anyNA(out) || anyDuplicated(out$lag) ||
+      !identical(out$lag, seq_len(nrow(out)))) {
+    stop(if (partial) "PACF lag indices are not contiguous from lag 1." else
+           "ACF lag indices are not contiguous from lag 1.")
+  }
+  out
 }
+assert_correlation_alignment <- function(x, label) {
+  a <- acf_frame(x, partial = FALSE)
+  p <- acf_frame(x, partial = TRUE)
+  expected_lags <- seq_len(config$acf_lag_max)
+  if (!identical(a$lag, expected_lags) || !identical(p$lag, expected_lags)) {
+    stop(label, ": ACF/PACF lags must both begin at 1 and be contiguous.")
+  }
+  lag_one_error <- abs(a$correlation[1] - p$correlation[1])
+  if (!is.finite(lag_one_error) || lag_one_error > 1e-10) {
+    stop(label, ": PACF(1) does not equal ACF(1) within numeric tolerance; error=",
+         format(lag_one_error, scientific = TRUE))
+  }
+  invisible(list(acf = a, pacf = p, lag_one_error = lag_one_error))
+}
+original_corr <- assert_correlation_alignment(train_ts, "Training original series")
+seasonal_corr <- assert_correlation_alignment(seasonal_diff, "Training seasonal-differenced series")
 plot_corr <- function(x, title, file) {
   a <- acf_frame(x, FALSE)
   p <- acf_frame(x, TRUE)
@@ -75,7 +109,9 @@ plot_corr <- function(x, title, file) {
                           colour = "#176B87") +
     ggplot2::geom_hline(yintercept = c(-bound, bound), linetype = 2,
                         colour = "#C44536") +
-    ggplot2::scale_x_continuous(breaks = seq(0, 48, 6)) +
+    ggplot2::scale_x_continuous(breaks = seq(6, config$acf_lag_max, 6),
+                                limits = c(.5, config$acf_lag_max + .5),
+                                minor_breaks = NULL) +
     ggplot2::labs(title = paste0(title, "：ACF"), x = "滞后（月）", y = "自相关")
   pc <- ggplot2::ggplot(p, ggplot2::aes(lag, correlation)) +
     ggplot2::geom_hline(yintercept = 0, colour = "#555555") +
@@ -83,7 +119,9 @@ plot_corr <- function(x, title, file) {
                           colour = "#E07A5F") +
     ggplot2::geom_hline(yintercept = c(-bound, bound), linetype = 2,
                         colour = "#C44536") +
-    ggplot2::scale_x_continuous(breaks = seq(0, 48, 6)) +
+    ggplot2::scale_x_continuous(breaks = seq(6, config$acf_lag_max, 6),
+                                limits = c(.5, config$acf_lag_max + .5),
+                                minor_breaks = NULL) +
     ggplot2::labs(title = paste0(title, "：PACF"), x = "滞后（月）", y = "偏自相关")
   save_plot(ac, paste0(file, "_acf.png"), 8, 4.6)
   save_plot(pc, paste0(file, "_pacf.png"), 8, 4.6)
@@ -93,9 +131,15 @@ plot_corr(seasonal_diff, "训练段季节差分序列", "06_seasonal_diff")
 correlation_table <- function(x, label) {
   a <- acf_frame(x, FALSE)
   p <- acf_frame(x, TRUE)
-  data.frame(series = label, lag = a$lag[seq_len(24)],
-             acf = a$correlation[seq_len(24)],
-             pacf = p$correlation[seq_len(24)])
+  aligned <- merge(a, p, by = "lag", all = TRUE, sort = TRUE,
+                   suffixes = c("_acf", "_pacf"))
+  if (anyNA(aligned) || !identical(aligned$lag, seq_len(config$acf_lag_max))) {
+    stop(label, ": ACF and PACF could not be joined on identical contiguous lag values.")
+  }
+  aligned <- aligned[aligned$lag <= config$identification_table_lags, , drop = FALSE]
+  data.frame(series = label, lag = aligned$lag,
+             acf = aligned$correlation_acf,
+             pacf = aligned$correlation_pacf)
 }
 correlation_results <- rbind(correlation_table(train_ts, "训练段原序列"),
                              correlation_table(seasonal_diff, "训练段季节差分"))

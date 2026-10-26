@@ -1,13 +1,19 @@
 dat <- utils::read.csv(path_for("data", "processed", "IPG2211A2N_clean.csv"),
                        stringsAsFactors = FALSE)
 dat$date <- as.Date(dat$date)
+config <- .experiment_config
 train <- get(".training_data", envir = .GlobalEnv)
 test <- get(".test_data", envir = .GlobalEnv)
 train_ts <- get(".training_ts", envir = .GlobalEnv)
 selected_model <- get(".selected_model", envir = .GlobalEnv)
 nnar_fit <- get(".nnar_fit", envir = .GlobalEnv)
 h <- nrow(test)
-test_ts <- stats::ts(test$value, start = c(test$year[1], test$month[1]), frequency = 12)
+if (h != config$test_horizon || any(train$date >= min(test$date)) ||
+    !identical(test$date, seq(min(test$date), by = "month", length.out = h))) {
+  stop("The configured train/test split is not chronological and monthly-contiguous.")
+}
+test_ts <- stats::ts(test$value, start = c(test$year[1], test$month[1]),
+                     frequency = config$season_period)
 
 fc_snaive <- forecast::snaive(train_ts, h = h)
 fc_arima <- forecast::forecast(selected_model, h = h, level = c(80, 95))
@@ -26,9 +32,17 @@ pred <- data.frame(
   sarima_lo95 = as.numeric(fc_arima$lower[, "95%"]),
   sarima_hi95 = as.numeric(fc_arima$upper[, "95%"])
 )
-if (nrow(pred) != 24L || any(!is.finite(as.matrix(pred[, c("actual", "seasonal_naive",
-                                                            "sarima", "nnar", "ets")])))) {
+point_columns <- c("actual", "seasonal_naive", "sarima", "nnar", "ets")
+interval_columns <- c("sarima_lo80", "sarima_hi80", "sarima_lo95", "sarima_hi95")
+if (nrow(pred) != config$test_horizon ||
+    any(!is.finite(as.matrix(pred[, c(point_columns, interval_columns)])))) {
   stop("Invalid forecast length, alignment, or non-finite prediction.")
+}
+if (any(pred$sarima_lo80 > pred$sarima_hi80) ||
+    any(pred$sarima_lo95 > pred$sarima_hi95) ||
+    any(pred$sarima_lo95 > pred$sarima_lo80) ||
+    any(pred$sarima_hi80 > pred$sarima_hi95)) {
+  stop("SARIMA prediction intervals are invalid or not nested by nominal coverage.")
 }
 write_csv(pred, "results", "test_predictions.csv")
 
@@ -37,8 +51,9 @@ metric_fn <- function(actual, predicted, training) {
   denominator <- abs(actual) + abs(predicted)
   smape_term <- ifelse(denominator == 0, ifelse(error == 0, 0, NA_real_),
                        200 * abs(error) / denominator)
-  mase_scale <- mean(abs(training[(13):length(training)] -
-                           training[1:(length(training) - 12)]))
+  m <- config$season_period
+  mase_scale <- mean(abs(training[(m + 1L):length(training)] -
+                           training[1:(length(training) - m)]))
   c(MAE = mean(abs(error)), RMSE = sqrt(mean(error^2)),
     sMAPE = mean(smape_term, na.rm = TRUE),
     MASE = mean(abs(error)) / mase_scale)
@@ -56,11 +71,29 @@ write_csv(metrics, "results", "model_comparison.csv")
 split_info <- data.frame(
   training_start = min(train$date), training_end = max(train$date), training_n = nrow(train),
   test_start = min(test$date), test_end = max(test$date), test_n = nrow(test),
-  split_rule = "Last 24 months held out; fixed-origin multi-step forecast",
+  split_rule = paste0("Last ", config$test_horizon,
+                      " months held out; fixed-origin multi-step forecast"),
   selected_sarima_by = get(".selection_rule", envir = .GlobalEnv),
   nnar_tuning = "One configuration set before test evaluation; no test-based tuning"
 )
 write_csv(split_info, "results", "split_information.csv")
+
+coverage_levels <- c(`80%` = 0.80, `95%` = 0.95)
+coverage_bounds <- list(
+  `80%` = c(lower = "sarima_lo80", upper = "sarima_hi80"),
+  `95%` = c(lower = "sarima_lo95", upper = "sarima_hi95")
+)
+coverage_rows <- lapply(names(coverage_levels), function(label) {
+  bounds <- coverage_bounds[[label]]
+  lower <- pred[[bounds[["lower"]]]]
+  upper <- pred[[bounds[["upper"]]]]
+  covered <- pred$actual >= lower & pred$actual <= upper
+  data.frame(nominal_coverage = unname(coverage_levels[[label]]),
+             actual_coverage = mean(covered), covered_n = sum(covered),
+             test_n = nrow(pred), mean_width = mean(upper - lower))
+})
+coverage <- do.call(rbind, coverage_rows)
+write_csv(coverage, "results", "prediction_interval_coverage.csv")
 
 pred_long <- rbind(
   data.frame(date = pred$date, actual = pred$actual, model = "实际观测", value = pred$actual),
@@ -119,27 +152,36 @@ metric_plot <- ggplot2::ggplot(metric_long,
   ggplot2::labs(title = "测试集预测误差指标比较", x = "模型", y = "指标值")
 save_plot(metric_plot, "15_model_error_metrics.png", 10, 6)
 
-full_ts <- stats::ts(dat$value, start = c(dat$year[1], dat$month[1]), frequency = 12)
+full_ts <- stats::ts(dat$value, start = c(dat$year[1], dat$month[1]),
+                    frequency = config$season_period)
 selected_order <- forecast::arimaorder(selected_model)
 full_fit <- forecast::Arima(
   full_ts, order = selected_order[1:3],
-  seasonal = list(order = selected_order[4:6], period = 12),
-  include.drift = TRUE, method = "ML"
+  seasonal = list(order = selected_order[4:6], period = config$season_period),
+  include.mean = "intercept" %in% names(stats::coef(selected_model)),
+  include.drift = "drift" %in% names(stats::coef(selected_model)), method = "ML"
 )
-future_fc <- forecast::forecast(full_fit, h = 12, level = c(80, 95))
-future_dates <- seq(max(dat$date), by = "month", length.out = 13)[-1]
+future_fc <- forecast::forecast(full_fit, h = config$future_horizon, level = c(80, 95))
+future_dates <- seq(max(dat$date), by = "month", length.out = config$future_horizon + 1L)[-1]
 future <- data.frame(
   date = future_dates, forecast = as.numeric(future_fc$mean),
   lo80 = as.numeric(future_fc$lower[, "80%"]), hi80 = as.numeric(future_fc$upper[, "80%"]),
   lo95 = as.numeric(future_fc$lower[, "95%"]), hi95 = as.numeric(future_fc$upper[, "95%"])
 )
-if (nrow(future) != 12L || min(future$date) != seq(max(dat$date), by = "month", length.out = 13)[2]) {
+if (nrow(future) != config$future_horizon ||
+    !identical(future$date, future_dates) ||
+    any(!is.finite(as.matrix(future[, c("forecast", "lo80", "hi80", "lo95", "hi95")])))) {
   stop("Future forecast dates are not aligned after the last observed month.")
+}
+if (any(future$lo80 > future$hi80) || any(future$lo95 > future$hi95) ||
+    any(future$lo95 > future$lo80) || any(future$hi80 > future$hi95)) {
+  stop("Full-sample prediction intervals are invalid or not nested.")
 }
 write_csv(future, "results", "future_12_month_forecast.csv")
 saveRDS(full_fit, path_for("results", "selected_sarima_full_sample_fit.rds"))
 capture.output(print(full_fit), file = path_for("results", "selected_sarima_full_sample_summary.txt"))
-history_start <- seq(max(dat$date), by = "-1 month", length.out = 49)[49]
+history_start <- seq(max(dat$date), by = "-1 month",
+                     length.out = config$season_period * 4L + 1L)[config$season_period * 4L + 1L]
 history <- dat[dat$date >= history_start, ]
 future_plot <- ggplot2::ggplot() +
   ggplot2::geom_ribbon(data = future, ggplot2::aes(date, ymin = lo95, ymax = hi95),
@@ -156,5 +198,6 @@ future_plot <- ggplot2::ggplot() +
                 subtitle = "虚线右侧为尚未观测的预测期；阴影为 80% 与 95% 预测区间",
                 x = "月份", y = "工业生产指数")
 save_plot(future_plot, "16_future_12_month_forecast.png", 10, 5.7)
-message("Forecasts complete. Held-out test metrics saved; selected SARIMA refitted to all ",
-        length(full_ts), " observations for the future forecast.")
+message("Forecasts complete. Held-out metrics and interval coverage saved; selected SARIMA ",
+        "refitted to all ", length(full_ts), " observations for ",
+        config$future_horizon, " future months.")

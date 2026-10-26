@@ -1,4 +1,5 @@
 train_ts <- get(".training_ts", envir = .GlobalEnv)
+config <- .experiment_config
 specs <- list(
   "SARIMA(0,0,0)(0,1,1)[12]" = list(order = c(0, 0, 0), seasonal = c(0, 1, 1)),
   "SARIMA(1,0,0)(0,1,1)[12]" = list(order = c(1, 0, 0), seasonal = c(0, 1, 1)),
@@ -24,7 +25,9 @@ for (nm in names(specs)) {
 }
 auto_fit <- forecast::auto.arima(
   train_ts, seasonal = TRUE, stepwise = TRUE, approximation = FALSE,
-  max.p = 3, max.q = 3, max.P = 2, max.Q = 2, max.d = 1, max.D = 1,
+  max.p = config$sarima_search$max_p, max.q = config$sarima_search$max_q,
+  max.P = config$sarima_search$max_P, max.Q = config$sarima_search$max_Q,
+  max.d = config$sarima_search$max_d, max.D = config$sarima_search$max_D,
   allowmean = TRUE, allowdrift = TRUE, trace = FALSE
 )
 auto_name <- "auto.arima（训练段逐步搜索辅助候选）"
@@ -35,7 +38,7 @@ model_rows <- lapply(names(models), function(nm) {
   ord <- forecast::arimaorder(fit)
   residual <- as.numeric(stats::na.omit(stats::residuals(fit)))
   fitdf <- sum(ord[c(1, 3, 4, 6)])
-  lb_lag <- min(24L, floor(length(residual) / 5))
+  lb_lag <- min(config$residual_ljung_box_lag, floor(length(residual) / 5))
   lb <- stats::Box.test(residual, lag = lb_lag, type = "Ljung-Box", fitdf = fitdf)
   code <- if (is.null(fit$code)) NA_integer_ else as.integer(fit$code)
   data.frame(
@@ -81,8 +84,11 @@ param <- data.frame(parameter = names(co), estimate = unname(co), std_error = un
 write_csv(param, "results", "selected_model_parameters.csv")
 
 resid <- as.numeric(stats::na.omit(stats::residuals(selected_model)))
+if (length(resid) < 10L || any(!is.finite(resid))) {
+  stop("The selected SARIMA model returned insufficient or non-finite residuals.")
+}
 fitdf <- sum(ord[c(1, 3, 4, 6)])
-lb_lag <- min(24L, floor(length(resid) / 5))
+lb_lag <- min(config$residual_ljung_box_lag, floor(length(resid) / 5))
 lb <- stats::Box.test(resid, lag = lb_lag, type = "Ljung-Box", fitdf = fitdf)
 diagnostics <- data.frame(
   model = selected_name, residual_n = length(resid), ljung_box_lag = lb_lag,
@@ -112,11 +118,10 @@ p_acf <- ggplot2::ggplot(acf_df, ggplot2::aes(lag, acf)) +
   ggplot2::labs(title = "最终 SARIMA 模型残差 ACF", x = "滞后（月）", y = "自相关")
 save_plot(p_acf, "10_sarima_residual_acf.png", 9, 4.8)
 
-qq <- stats::qqnorm(resid, plot.it = FALSE)
-qq_df <- data.frame(theoretical = qq$x, sample = qq$y)
-p_qq <- ggplot2::ggplot(qq_df, ggplot2::aes(theoretical, sample)) +
-  ggplot2::geom_point(size = 1.4, alpha = .75) +
-  ggplot2::geom_abline(colour = "#C44536", linetype = 2) +
+p_qq <- ggplot2::ggplot(data.frame(residual = resid),
+                        ggplot2::aes(sample = residual)) +
+  ggplot2::geom_qq(size = 1.4, alpha = .75, colour = "#176B87") +
+  ggplot2::geom_qq_line(colour = "#C44536", linetype = 2) +
   ggplot2::labs(title = "最终 SARIMA 模型残差正态 Q-Q 图",
                 x = "正态理论分位数", y = "残差分位数")
 save_plot(p_qq, "11_sarima_residual_qq.png", 8, 5)
