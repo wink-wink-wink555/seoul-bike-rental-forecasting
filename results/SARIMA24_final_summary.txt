@@ -1,0 +1,10 @@
+Series: y 
+ARIMA(1,0,1)(0,1,1)[24] 
+
+Coefficients:
+         ar1     ma1     sma1
+      0.8348  0.2676  -0.9387
+s.e.  0.0066  0.0118   0.0037
+
+sigma^2 = 33432:  log likelihood = -57923.33
+AIC=115854.6   AICc=115854.7   BIC=115882.9

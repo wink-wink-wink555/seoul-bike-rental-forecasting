@@ -1,2 +1,4 @@
-"training_start","training_end","training_n","test_start","test_end","test_n","split_rule","selected_sarima_by","nnar_tuning"
-2000-01-01,2024-09-01,297,2024-10-01,2026-09-01,24,"Last 24 months held out; fixed-origin multi-step forecast","Selected lowest training AICc among candidates with Ljung-Box p > 0.05.","One configuration set before test evaluation; no test-based tuning"
+"split","start","end","n","days","closure_hours","closure_percent"
+"initial_training",2017-12-01,2018-07-31 23:00:00,5832,243,48,0.823045267489712
+"test",2018-10-01,2018-11-30 23:00:00,1464,61,151,10.3142076502732
+"validation",2018-08-01,2018-09-30 23:00:00,1464,61,96,6.55737704918033

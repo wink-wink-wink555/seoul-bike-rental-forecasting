@@ -1,0 +1,6 @@
+"series","n","adf_deterministic","adf_max_lag","adf_selected_lag","adf_statistic","adf_cv_5pct","adf_reject_unit_root_5pct","kpss_statistic","kpss_cv_5pct","kpss_reject_stationarity_5pct"
+"raw",5832,"trend",168,168,-3.31565060475629,-3.41,FALSE,0.2724655369973,0.146,TRUE
+"log1p",5832,"trend",168,168,-4.52865880524931,-3.41,TRUE,0.137664407869005,0.146,FALSE
+"diff1",5831,"drift",168,168,-9.1589239548688,-2.86,TRUE,0.0247423726166378,0.463,FALSE
+"diff24",5808,"drift",168,168,-8.22936656947188,-2.86,TRUE,0.0250809316497758,0.463,FALSE
+"diff1_diff24",5807,"drift",168,168,-13.0143580539071,-2.86,TRUE,0.0151340413052926,0.463,FALSE

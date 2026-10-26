@@ -1,0 +1,3 @@
+"evaluation","training_end_index","lag","MASE_denominator"
+"validation",5832,168,250.979166666667
+"test",7296,168,281.220679012346

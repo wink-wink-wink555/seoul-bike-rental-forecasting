@@ -1,0 +1,10 @@
+# Local R libraries and fitted-model caches can be restored by the R workflow.
+.Rlib/
+.Rproj.user/
+.Rhistory
+results/cache/
+logs/
+
+# Authentication and temporary checkout material.
+.gh-auth-temp/
+.pr-checkout/

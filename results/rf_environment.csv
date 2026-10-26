@@ -1,0 +1,6 @@
+"item","value"
+"implementation","R ranger"
+"R","R version 4.6.1 (2026-06-24 ucrt)"
+"ranger","0.18.0"
+"seed","20261026"
+"trees","400"

@@ -1,0 +1,4 @@
+"id","family","p","d","q","P","D","Q","period","transform","window_days","daily_K","weekly_K","weather_lag24","weekend_interactions"
+"A_raw_212_full","ARIMA",2,1,2,0,0,0,1,"raw",0,0,0,FALSE,FALSE
+"D_raw_202_K5_weekend_84d_refined","DHR_ARIMA",2,0,2,0,0,0,1,"raw",84,5,3,FALSE,TRUE
+"S_raw_101_111_84d","SARIMA24",1,0,1,1,1,1,24,"raw",84,0,0,FALSE,FALSE

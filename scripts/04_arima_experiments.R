@@ -1,0 +1,40 @@
+source(path_for("scripts","04_model_engine.R"),encoding="UTF-8")
+specs<-list(
+ make_spec("A_raw_212_full","ARIMA",c(2,1,2)),
+ make_spec("A_log_212_full","ARIMA",c(2,1,2),transform="log1p"),
+ make_spec("A_raw_312_84d","ARIMA",c(3,1,2),window=84L),
+ make_spec("A_log_312_84d","ARIMA",c(3,1,2),transform="log1p",window=84L),
+ make_spec("A_log_302_84d_refined","ARIMA",c(3,0,2),transform="log1p",window=84L),
+ make_spec("S_raw_101_011_full","SARIMA24",c(1,0,1),c(0,1,1)),
+ make_spec("S_raw_201_011_84d","SARIMA24",c(2,0,1),c(0,1,1),window=84L),
+ make_spec("S_raw_202_011_56d","SARIMA24",c(2,0,2),c(0,1,1),window=56L),
+ make_spec("S_log_101_011_full","SARIMA24",c(1,0,1),c(0,1,1),transform="log1p"),
+ make_spec("S_log_201_011_84d","SARIMA24",c(2,0,1),c(0,1,1),transform="log1p",window=84L),
+ make_spec("S_raw_101_111_84d","SARIMA24",c(1,0,1),c(1,1,1),window=84L),
+ make_spec("S_log_101_100_84d_refined","SARIMA24",c(1,0,1),c(1,0,0),transform="log1p",window=84L),
+ make_spec("D_raw_K3_full","DHR_ARIMA",c(2,1,2),K=3L),
+ make_spec("D_raw_K5_84d","DHR_ARIMA",c(2,1,2),window=84L,K=5L),
+ make_spec("D_raw_K5_56d","DHR_ARIMA",c(3,1,2),window=56L,K=5L),
+ make_spec("D_log_K5_84d","DHR_ARIMA",c(2,1,2),transform="log1p",window=84L,K=5L),
+ make_spec("D_raw_K5_weather_84d","DHR_ARIMA",c(2,1,2),window=84L,K=5L,weather=TRUE),
+ make_spec("D_raw_K5_weather_56d","DHR_ARIMA",c(3,1,2),window=56L,K=5L,weather=TRUE),
+ make_spec("D_raw_202_K5_weekend_84d_refined","DHR_ARIMA",c(2,0,2),window=84L,K=5L,weekend_interactions=TRUE))
+names(specs)<-vapply(specs,`[[`,character(1),"id")
+validation_days<-seq(config$validation_start,config$validation_end,by="day")
+message("Step 1: complete daily validation for all ",length(specs)," original ARIMA candidates.")
+runs<-run_candidate_batch(specs,validation_days,"validation_full")
+exported<-export_validation(specs,runs,"validation_full")
+write_csv(exported$metrics,"results","arima_validation_metrics.csv")
+write_csv(exported$predictions,"results","arima_validation_predictions.csv")
+write_csv(exported$refits,"results","validation_refit_log.csv")
+write_csv(exported$failures,"results","candidate_failures.csv")
+winners<-lapply(split(exported$metrics[exported$metrics$subset=="all",],exported$metrics$model[exported$metrics$subset=="all"]),
+ function(g)g$candidate[order(g$RMSE,g$MAE)][1])
+selected<-specs[unlist(winners,use.names=FALSE)];names(selected)<-names(winners)
+saveRDS(specs,path_for("results","candidate_specs.rds"))
+saveRDS(selected,path_for("results","stage1_selected_arima_specs.rds"))
+saveRDS(selected,path_for("results","selected_arima_specs.rds"))
+write_csv(do.call(rbind,lapply(specs,spec_to_row)),"results","arima_candidate_specifications.csv")
+write_csv(do.call(rbind,lapply(selected,spec_to_row)),"results","selected_arima_specifications.csv")
+write_csv(exported$metrics,"results","stage1_full_validation_metrics.csv")
+message("Step 1 complete: ",paste(vapply(selected,`[[`,character(1),"id"),collapse=", "))
